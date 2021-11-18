@@ -1,7 +1,7 @@
 baseurl: /
 languageCode: en-us
-title: A Hugo website
-theme: hugo-lithium
+title: Mysterious World
+theme: blackburn
 googleAnalytics: ''
 disqusShortname: ''
 ignoreFiles:
