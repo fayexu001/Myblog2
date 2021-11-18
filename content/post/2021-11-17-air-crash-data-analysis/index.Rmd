@@ -1,0 +1,142 @@
+---
+title: Air crash data analysis
+author: R package build
+date: '2021-11-17'
+slug: air-crash-data-analysis
+---
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(wordcloud2)
+library(plotly)
+library(leaflet)
+library(lubridate)
+library(readxl)
+library(ggthemes)
+library(ggsci)
+library(scales)
+library(patchwork)
+```
+
+Since the Wright brothers invented airplanes in 1903, the history of human flight has gone through more than one hundred years. Looking back on history, airplanes have occupied an important position in transportation because of their increasingly convenient and irreplaceable advantages. Worldwide, the number of global aircraft passenger traffic has increased in the past decade. . Worldwide, the number of global aircraft passenger traffic has increased in the past decade. From 1.94 million person-times in 2004 to 3.588 million person-times in 2019 (ICAO report). Large aircraft manufacturers such as Boeing and Airbus have also grown rapidly with the development of the aircraft industry. With the great strides forward of the aviation industry, its various hidden dangers also affect the sensitive hearts of its potential users. In recent years, the aviation incidents that have attracted the most attention are MH370 and Boeing 737 MAX. On January 29, 2015, the Civil Aviation Authority of Malaysia announced that Malaysia Airlines Flight MH370 had crashed and it was presumed that all 239 passengers and crew on board had been killed. The Boeing 737 MAX plane crashed twice, in Indonesia on October 29, 2018 and in Ethiopia on March 10, 2019. The air crash claimed 336 lives in total.
+
+In recent decades, people have summed up their experience and lessons. In order to improve flight safety, countries around the world have implemented many reforms and adopted many measures. In recent years, the annual number of flight accidents and fatalities has been declining year by year. It can be seen from the figure that around 1970, there were more than 300 air crashes each year, and the death toll was as high as 3,000. Then until 2010, the annual number of air crashes has been approaching 200 or even lower, and the annual number of deaths due to air crashes has dropped to 1,000. By 2019, these two figures will reach new lows.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center'}
+read_excel("Data.xlsx", 2) %>%  
+  dplyr::select(1:3) %>%
+  pivot_longer(-year, names_to = "Var", values_to = "Val") %>%
+  ggplot(aes(x=year,y = Val, group = Var, col = Var)) +
+  geom_line()+
+  geom_point() +
+  labs(x = "", y = 'Number', col = "") +
+  theme_wsj() + 
+  scale_y_continuous(labels = label_number(big.mark = ',')) +
+  scale_color_wsj() +
+  facet_wrap(Var~., scales = "free", nrow = 2) +
+  guides(col = 'none')
+```
+
+Here, I will classify and summarize these accidents by month and week. From the picture (left picture), it can be found that the most frequent months of accidents are January and December. As far as all months are concerned, the difference between them is not obvious. The least accidents occurred in February and November. The main difference is that the holiday after Christmas increases people’s chances of travel, while before and after the holiday, people need to spend more time at work, thus reducing the flow of people traveling, thereby reducing accidents. The number of times. In terms of the week (picture on the right), the most accidents occurred on Thursday and Friday. At least Sunday. In general, we don't see any periodic patterns in this picture.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.width=12, fig.height= 4}
+df <- read_excel("Data.xlsx",1) %>% 
+  mutate(date = ymd(date), Month = month(date, label = T),
+         w = wday(date, label = T))
+p1 <- df %>% group_by(Month) %>% 
+  count %>%
+  ggplot(aes(x = Month, y = n)) +
+  geom_bar(stat = "identity", fill = 'steelblue') + 
+  geom_text(aes(label = n, y =n*1.01)) + 
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_wsj() 
+p2 <- df %>% group_by(w) %>% 
+  count %>%
+  ggplot(aes(x = w, y = n)) +
+  geom_bar(stat = "identity", fill = 'steelblue') + 
+  geom_text(aes(label = n, y =n*1.01)) +
+  theme_wsj() + 
+  scale_y_continuous(breaks = breaks_pretty(), expand = c(0, 0))
+p1 + p2 + plot_layout(widths = c(4, 2.5))
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+df2_raw <- read_excel("Data.xlsx", 5)
+df2 <- df2_raw %>% mutate(latitude = as.numeric(latitude),
+                        longitude = as.numeric(longitude),
+                        depature.latitude = as.numeric(depature.latitude),
+                        depature.longitude = as.numeric(depature.longitude),
+                        arrival.latitude = as.numeric(arrival.latitude),
+                        arrival.longitude = as.numeric(arrival.longitude)) 
+
+leaflet() %>%
+  addTiles() %>%
+  addCircles(data = df2, lng = ~longitude, lat = ~latitude) 
+```
+
+As for the cause of the accident, it can be found that in the past 50 years, 3017 accidents were caused by the airplane itself, and 2968 accidents were caused by the Controlled Flight Into Terrain (Result). There were accidents caused by weather and other reasons. 453 onwards.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+df3 <- read_excel("Data.xlsx", 4) 
+p1 <- df3 %>%
+  group_by(Type) %>%
+  summarise(Num=n()) %>% 
+  mutate(Type = reorder(Type, Num),
+         Number = Num) %>%
+  ggplot(aes(x = Type, y = Number)) +
+  geom_point(col = 'tomato') +
+  geom_segment(aes(xend = Type, yend = 0),
+               col = 'tomato') +
+  geom_text(aes(y = Number + 200, label = Number)) +
+  theme_wsj() +
+  coord_flip() + 
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 4000)) +
+  theme(panel.grid.major = element_blank())
+ggplotly(p1)
+```
+
+Here, we further subdivide the causes of occurrence. It can be seen from the figure that the most frequent words among these reasons are `Fire`, `All engine powerloss`, `Airfraft system failures` and `Airframe failure--Wing failure`. From these words, it can be found that airplanes are appearing After the accident, the internal damage of the aircraft, such as fire, engine failure, and Aifframe failure, led to a disaster. From these perspectives, we can increase the strength of these aircraft parts to avoid disasters as much as possible.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+df3 %>%  
+  pull(Reason) %>% 
+  na.omit %>% table %>% 
+  data.frame %>%
+  wordcloud2(size = 2, backgroundColor = "grey", shape = "star")
+```
+
+Here, I investigated the internal reasons of the aircraft and found that most of the reasons were accident hull-loss accidents. The secondary cause is accident repairable damage. In addition, it can be found from these internal reasons that some of the reasons can be repaired.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+p2 <- df %>% 
+  dplyr::select(type, type1, cat)%>%
+  group_by(cat) %>% 
+  count() %>%
+  left_join(data.frame(
+    cat=c("H2","A1","A2","C2","C1","O1","O2","H1","U1","I1"),
+    cat1=c("Hijacking \nrepairable damage",
+         "Accident \nhull-loss",
+         "Accident \nrepairable damage",
+         "Criminal occurr \nrepairable",
+         "Criminal occurr \nhull-loss",
+         "Other occurrence\nhull-loss",
+         "Other occurrence\nrepairable damage",
+         "Hijacking \nhull-loss",        
+         "Unfiled occurrence \nhull-loss",
+         "Incident \nrepairable damage"),
+    Repairable = c('Yes', 'No', 'Yes', 'Yes', 'No', 'No', 'Yes', 'No', 'No', 'Yes'))) %>%
+  mutate(Number = n, cat = cat1) %>%
+  na.omit() %>%
+  ggplot(aes(x = cat, y = Number, fill = Repairable)) +
+  geom_bar(stat = 'identity', width = 0.7) +
+  theme_wsj() +
+  scale_fill_wsj() +
+  coord_flip() + 
+  scale_y_log10(expand = c(0, 0)) +
+  theme(panel.grid.major = element_blank())
+ggplotly(p2)
+```
+
